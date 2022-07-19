@@ -9,6 +9,7 @@ deep-head-pose
 EvalImages
 cache*
 *.pkl
+*.npy
 gif
 archive
 *.ply
