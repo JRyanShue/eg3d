@@ -199,7 +199,7 @@ def generate_images(
                         torch.manual_seed(0)
 
                         # TODO: If a flag is toggled, use a dataset of triplanes (pre-denoised) instead of generated triplanes for shape generation.
-                        sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], z, conditioning_params, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
+                        sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], z, conditioning_params, index=seed_idx, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
                         sigmas[:, head:head+max_batch] = sigma
                         head += max_batch
                         pbar.update(max_batch)
@@ -228,6 +228,7 @@ def generate_images(
 #----------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    os.system('mkdir eg3d_triplane_ds')
     generate_images() # pylint: disable=no-value-for-parameter
 
 #----------------------------------------------------------------------------
