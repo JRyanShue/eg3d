@@ -10,6 +10,8 @@
 
 import torch
 
+# ws is a latent vector for input into the generator. 
+# meaning that G is the generator that creates the point cloud. G is triplane generator in triplane.py
 def sample_cross_section(G, ws, resolution=256, w=1.2):
     axis=0
     A, B = torch.meshgrid(torch.linspace(w/2, -w/2, resolution, device=ws.device), torch.linspace(-w/2, w/2, resolution, device=ws.device), indexing='ij')

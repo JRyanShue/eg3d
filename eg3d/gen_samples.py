@@ -102,6 +102,7 @@ def create_samples(N=256, voxel_origin=[0, 0, 0], cube_length=2.0):
 
 #----------------------------------------------------------------------------
 
+# TODO: Add a flag for a dataset of triplanes to pull from. If the flag is filled, toggle the usage of pre-denoised triplanes, using them for shape generation.
 @click.command()
 @click.option('--network', 'network_pkl', help='Network pickle filename', required=True)
 @click.option('--seeds', type=parse_range, help='List of random seeds (e.g., \'0,1,4-6\')', required=True)
@@ -159,7 +160,7 @@ def generate_images(
     # Generate images.
     for seed_idx, seed in enumerate(seeds):
         print('Generating image for seed %d (%d/%d) ...' % (seed, seed_idx, len(seeds)))
-        z = torch.from_numpy(np.random.RandomState(seed).randn(1, G.z_dim)).to(device)
+        z = torch.from_numpy(np.random.RandomState(seed).randn(1, G.z_dim)).to(device)  # Latent prior
 
         imgs = []
         angle_p = -0.2
@@ -181,7 +182,7 @@ def generate_images(
 
         PIL.Image.fromarray(img[0].cpu().numpy(), 'RGB').save(f'{outdir}/seed{seed:04d}.png')
 
-        if shapes:
+        if shapes:  # Toggle this option.
             # extract a shape.mrc with marching cubes. You can view the .mrc file using ChimeraX from UCSF.
             max_batch=1000000
 
@@ -196,6 +197,8 @@ def generate_images(
                 with torch.no_grad():
                     while head < samples.shape[1]:
                         torch.manual_seed(0)
+
+                        # TODO: If a flag is toggled, use a dataset of triplanes (pre-denoised) instead of generated triplanes for shape generation.
                         sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], z, conditioning_params, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
                         sigmas[:, head:head+max_batch] = sigma
                         head += max_batch
@@ -214,10 +217,10 @@ def generate_images(
             sigmas[:, :, :pad] = pad_value
             sigmas[:, :, -pad:] = pad_value
 
-            if shape_format == '.ply':
+            if shape_format == '.ply':  # Toggle this option?
                 from shape_utils import convert_sdf_samples_to_ply
                 convert_sdf_samples_to_ply(np.transpose(sigmas, (2, 1, 0)), [0, 0, 0], 1, os.path.join(outdir, f'seed{seed:04d}.ply'), level=10)
-            elif shape_format == '.mrc': # output mrc
+            elif shape_format == '.mrc': # output mrc < what is mrc?
                 with mrcfile.new_mmap(os.path.join(outdir, f'seed{seed:04d}.mrc'), overwrite=True, shape=sigmas.shape, mrc_mode=2) as mrc:
                     mrc.data[:] = sigmas
 
