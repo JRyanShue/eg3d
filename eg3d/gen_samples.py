@@ -208,7 +208,7 @@ def generate_images(
             
             # HERE: Save 'planes' (the triplane for the example) as a np array
             print(planes.shape)
-            np.save(f'eg3d_triplane_ds/{seed_idx}', planes.cpu().numpy())
+            np.save(f'eg3d_triplane_ds/{seed:04d}', planes.cpu().numpy())
 
             sigmas = sigmas.reshape((shape_res, shape_res, shape_res)).cpu().numpy()
             sigmas = np.flip(sigmas, 0)
