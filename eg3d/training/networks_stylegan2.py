@@ -526,7 +526,7 @@ class SynthesisNetwork(torch.nn.Module):
 #----------------------------------------------------------------------------
 
 @persistence.persistent_class
-class Generator(torch.nn.Module):
+class Generator(torch.nn.Module):  # Generates triplanes
     def __init__(self,
         z_dim,                      # Input latent (Z) dimensionality.
         c_dim,                      # Conditioning label (C) dimensionality.

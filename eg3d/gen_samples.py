@@ -173,6 +173,11 @@ def generate_images(
             conditioning_params = torch.cat([conditioning_cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
 
             ws = G.mapping(z, conditioning_params, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff)
+            
+            # Skip synthesis and only save triplanes.
+            triplane = G.make_triplane(ws)
+            print(f'triplane.shape: {triplane.shape}')
+            
             img = G.synthesis(ws, camera_params)['image']
 
             img = (img.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)

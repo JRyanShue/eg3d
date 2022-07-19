@@ -46,6 +46,13 @@ class TriPlaneGenerator(torch.nn.Module):
     
         self._last_planes = None
     
+    def make_triplane(self, ws):
+        planes = self.backbone.synthesis(ws, update_emas=False)
+
+        # Reshape output into three 32-channel planes
+        planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
+        return planes
+    
     def mapping(self, z, c, truncation_psi=1, truncation_cutoff=None, update_emas=False):
         if self.rendering_kwargs['c_gen_conditioning_zero']:
                 c = torch.zeros_like(c)
