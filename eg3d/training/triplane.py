@@ -98,10 +98,6 @@ class TriPlaneGenerator(torch.nn.Module):
         planes = self.backbone.synthesis(ws, update_emas=update_emas, **synthesis_kwargs)
         planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
 
-        # HERE: Save 'planes' (the triplane for the example) as a np array
-        print(planes.shape)
-        np.save(f'eg3d_triplane_ds/{index}', planes.cpu().numpy())
-
         return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs), planes
 
     def sample_mixed(self, coordinates, directions, ws, truncation_psi=1, truncation_cutoff=None, update_emas=False, **synthesis_kwargs):

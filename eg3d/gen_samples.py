@@ -193,16 +193,21 @@ def generate_images(
             transformed_ray_directions_expanded[..., -1] = -1
 
             head = 0
+            planes = None
             with tqdm(total = samples.shape[1]) as pbar:
                 with torch.no_grad():
                     while head < samples.shape[1]:
                         torch.manual_seed(0)
 
                         # TODO: If a flag is toggled, use a dataset of triplanes (pre-denoised) instead of generated triplanes for shape generation.
-                        sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], z, conditioning_params, index=seed_idx, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
+                        sigma, planes = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], z, conditioning_params, index=seed_idx, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
                         sigmas[:, head:head+max_batch] = sigma
                         head += max_batch
                         pbar.update(max_batch)
+            
+            # HERE: Save 'planes' (the triplane for the example) as a np array
+            print(planes.shape)
+            np.save(f'eg3d_triplane_ds/{seed_idx}', planes.cpu().numpy())
 
             sigmas = sigmas.reshape((shape_res, shape_res, shape_res)).cpu().numpy()
             sigmas = np.flip(sigmas, 0)
