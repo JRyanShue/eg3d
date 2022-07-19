@@ -98,7 +98,7 @@ class TriPlaneGenerator(torch.nn.Module):
         planes = planes.view(len(planes), 3, 32, planes.shape[-2], planes.shape[-1])
 
         # HERE: Save 'planes' (the triplane for the example) as a np array
-        #
+        print(planes.shape)
 
         return self.renderer.run_model(planes, self.decoder, coordinates, directions, self.rendering_kwargs)
 
