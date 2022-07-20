@@ -85,6 +85,7 @@ class ImportanceRenderer(torch.nn.Module):
         super().__init__()
         self.ray_marcher = MipRayMarcher2()
         self.plane_axes = generate_planes()
+        print(self.plane_axes.device)
 
     def forward(self, planes, decoder, ray_origins, ray_directions, rendering_options):
         print(f'ray_origins.device: {ray_origins.device}')
