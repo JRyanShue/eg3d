@@ -34,7 +34,7 @@ def generate_planes():
                             [0, 1, 0]],
                             [[0, 0, 1],
                             [1, 0, 0],
-                            [0, 1, 0]]], dtype=torch.float32)
+                            [0, 1, 0]]], dtype=torch.float32).to(torch.device('cuda'))
 
 def project_onto_planes(planes, coordinates):
     """
@@ -85,7 +85,7 @@ class ImportanceRenderer(torch.nn.Module):
         super().__init__()
         self.ray_marcher = MipRayMarcher2()
         self.plane_axes = generate_planes()
-        print(self.plane_axes.device)
+        print(self.plane_axes.device)  # cpu
 
     def forward(self, planes, decoder, ray_origins, ray_directions, rendering_options):
         print(f'ray_origins.device: {ray_origins.device}')
