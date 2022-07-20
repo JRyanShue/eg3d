@@ -141,7 +141,7 @@ class ImportanceRenderer(torch.nn.Module):
         return rgb_final, depth_final, weights.sum(2)
 
     def run_model(self, planes, decoder, sample_coordinates, sample_directions, options):
-        print(planes.device)
+        print(self.plane_axes.device)
         sampled_features = sample_from_planes(self.plane_axes, planes, sample_coordinates, padding_mode='zeros', box_warp=options['box_warp'])
 
         out = decoder(sampled_features, sample_directions)
