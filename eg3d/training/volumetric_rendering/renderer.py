@@ -49,6 +49,7 @@ def project_onto_planes(planes, coordinates):
     n_planes, _, _ = planes.shape
     coordinates = coordinates.unsqueeze(1).expand(-1, n_planes, -1, -1).reshape(N*n_planes, M, 3)
     inv_planes = torch.linalg.inv(planes).unsqueeze(0).expand(N, -1, -1, -1).reshape(N*n_planes, 3, 3)
+    print(coordinates.device, inv_planes.device)
     projections = torch.bmm(coordinates, inv_planes)
     return projections[..., :2]
 
