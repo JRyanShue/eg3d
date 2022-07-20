@@ -87,6 +87,7 @@ class ImportanceRenderer(torch.nn.Module):
         self.plane_axes = generate_planes()
 
     def forward(self, planes, decoder, ray_origins, ray_directions, rendering_options):
+        print(f'ray_origins.device: {ray_origins.device}')
         self.plane_axes = self.plane_axes.to(ray_origins.device)
 
         if rendering_options['ray_start'] == rendering_options['ray_end'] == 'auto':
