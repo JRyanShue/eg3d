@@ -159,34 +159,43 @@ def generate_images(
 
     # Generate images.
     for seed_idx, seed in enumerate(seeds):
-        print('Generating image for seed %d (%d/%d) ...' % (seed, seed_idx, len(seeds)))
-        z = torch.from_numpy(np.random.RandomState(seed).randn(1, G.z_dim)).to(device)  # Latent prior
 
-        imgs = []
-        angle_p = -0.2
-        for angle_y, angle_p in [(.4, angle_p), (0, angle_p), (-.4, angle_p)]:
-            cam_pivot = torch.tensor(G.rendering_kwargs.get('avg_camera_pivot', [0, 0, 0]), device=device)
-            cam_radius = G.rendering_kwargs.get('avg_camera_radius', 2.7)
-            cam2world_pose = LookAtPoseSampler.sample(np.pi/2 + angle_y, np.pi/2 + angle_p, cam_pivot, radius=cam_radius, device=device)
-            conditioning_cam2world_pose = LookAtPoseSampler.sample(np.pi/2, np.pi/2, cam_pivot, radius=cam_radius, device=device)
-            camera_params = torch.cat([cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
-            conditioning_params = torch.cat([conditioning_cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
+        # _continue = False
+        # print('Generating image for seed %d (%d/%d) ...' % (seed, seed_idx, len(seeds)))
+        # z = torch.from_numpy(np.random.RandomState(seed).randn(1, G.z_dim)).to(device)  # Latent prior
 
-            ws = G.mapping(z, conditioning_params, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff)
+        # imgs = []
+        # angle_p = -0.2
+        # for angle_y, angle_p in [(.4, angle_p), (0, angle_p), (-.4, angle_p)]:
+        #     cam_pivot = torch.tensor(G.rendering_kwargs.get('avg_camera_pivot', [0, 0, 0]), device=device)
+        #     cam_radius = G.rendering_kwargs.get('avg_camera_radius', 2.7)
+        #     cam2world_pose = LookAtPoseSampler.sample(np.pi/2 + angle_y, np.pi/2 + angle_p, cam_pivot, radius=cam_radius, device=device)
+        #     conditioning_cam2world_pose = LookAtPoseSampler.sample(np.pi/2, np.pi/2, cam_pivot, radius=cam_radius, device=device)
+        #     camera_params = torch.cat([cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
+        #     conditioning_params = torch.cat([conditioning_cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
+
+        #     ws = G.mapping(z, conditioning_params, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff)
             
-            # Skip synthesis and only save triplanes.
-            triplane = G.make_triplane(ws)
-            print(f'triplane.shape: {triplane.shape}')
-            
-            img = G.synthesis(ws, camera_params)['image']
+        #     # Skip synthesis and only save triplanes.
+        #     triplane = G.make_triplane(ws)
+        #     # HERE: Save 'planes' (the triplane for the example) as a np array
+        #     np.save(f'eg3d_triplane_ds/{seed:04d}', triplane.cpu().numpy())
+        #     _pass = True
+        #     break
 
-            img = (img.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-            imgs.append(img)
+        #     img = G.synthesis(ws, camera_params)['image']
 
-        img = torch.cat(imgs, dim=2)
+        #     img = (img.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+        #     imgs.append(img)
 
-        PIL.Image.fromarray(img[0].cpu().numpy(), 'RGB').save(f'{outdir}/seed{seed:04d}.png')
+        # if _continue:
+        #     continue
 
+        # img = torch.cat(imgs, dim=2)
+
+        # PIL.Image.fromarray(img[0].cpu().numpy(), 'RGB').save(f'{outdir}/seed{seed:04d}.png')
+        
+        _continue = False
         if shapes:  # Toggle this option.
             # extract a shape.mrc with marching cubes. You can view the .mrc file using ChimeraX from UCSF.
             max_batch=1000000
@@ -206,14 +215,19 @@ def generate_images(
 
                         # TODO: If a flag is toggled, use a dataset of triplanes (pre-denoised) instead of generated triplanes for shape generation.
                         sigma, planes = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], z, conditioning_params, index=seed_idx, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')
+                        
+                        # HERE: Save 'planes' (the triplane for the example) as a np array
+                        np.save(f'eg3d_triplane_ds/{seed:04d}', planes.cpu().numpy())
+                        _continue = True
+                        break
+                        
                         sigma = sigma['sigma']
                         sigmas[:, head:head+max_batch] = sigma
                         head += max_batch
                         pbar.update(max_batch)
             
-            # HERE: Save 'planes' (the triplane for the example) as a np array
-            print(planes.shape)
-            np.save(f'eg3d_triplane_ds/{seed:04d}', planes.cpu().numpy())
+            if _continue:
+                continue            
 
             sigmas = sigmas.reshape((shape_res, shape_res, shape_res)).cpu().numpy()
             sigmas = np.flip(sigmas, 0)
