@@ -6,3 +6,92 @@ create the corresponding directory of 3D shapes.
 No rendering required -- we are testing 3D/4D (first just 3D) capabilities of our model.
 '''
 
+'''
+Ex:
+
+CUDA_VISIBLE_DEVICES=6 python triplanes2shapes.py --triplane_dir=triplanes_to_convert --out_dir=converted_shapes
+'''
+
+import click
+import os
+
+import legacy
+
+import torch
+from tqdm import tqdm
+
+# from training.triplane import TriPlaneGenerator
+
+
+@click.command()
+@click.option('--network', 'network_pkl', help='Network pickle filename', required=True)
+@click.option('--triplane_dir', help='Directory of triplanes to convert to shapes', required=True)
+@click.option('--outdir', help='Directory to put completed shapes', required=True)
+def convert_triplanes(
+    network_pkl: str,
+    triplane_dir: str,
+    outdir: str,
+):
+
+    # Load pickled network
+    print('Loading networks from "%s"...' % network_pkl)
+    device = torch.device('cuda')
+    with dnnlib.util.open_url(network_pkl) as f:
+        G = legacy.load_network_pkl(f)['G_ema'].to(device) # type: ignore
+
+
+    print(f'Converting triplanes in \"{triplane_dir}\" to shapes in \"{outdir}\"')
+    os.makedirs(outdir, exist_ok=True)
+
+
+    # Loop through the triplane directory, converting each triplane into a shape in the outdir
+    shape_format = '.ply'  # Temporary - produces smoother results
+    for idx, num in enumerate(range(5)):
+        # extract a shape.mrc with marching cubes. You can view the .mrc file using ChimeraX from UCSF.
+        max_batch=1000000
+
+        samples, voxel_origin, voxel_size = create_samples(N=shape_res, voxel_origin=[0, 0, 0], cube_length=G.rendering_kwargs['box_warp'] * 1)#.reshape(1, -1, 3)
+        samples = samples.to(z.device)
+        sigmas = torch.zeros((samples.shape[0], samples.shape[1], 1), device=z.device)
+        transformed_ray_directions_expanded = torch.zeros((samples.shape[0], max_batch, 3), device=z.device)
+        transformed_ray_directions_expanded[..., -1] = -1
+
+        head = 0
+        with tqdm(total = samples.shape[1]) as pbar:
+            with torch.no_grad():
+                while head < samples.shape[1]:
+                    torch.manual_seed(0)
+                    sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], z, conditioning_params, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
+                    sigmas[:, head:head+max_batch] = sigma
+                    head += max_batch
+                    pbar.update(max_batch)
+
+        sigmas = sigmas.reshape((shape_res, shape_res, shape_res)).cpu().numpy()
+        sigmas = np.flip(sigmas, 0)
+
+        # Trim the border of the extracted cube
+        pad = int(30 * shape_res / 256)
+        pad_value = -1000
+        sigmas[:pad] = pad_value
+        sigmas[-pad:] = pad_value
+        sigmas[:, :pad] = pad_value
+        sigmas[:, -pad:] = pad_value
+        sigmas[:, :, :pad] = pad_value
+        sigmas[:, :, -pad:] = pad_value
+
+        if shape_format == '.ply':
+            from shape_utils import convert_sdf_samples_to_ply
+            convert_sdf_samples_to_ply(np.transpose(sigmas, (2, 1, 0)), [0, 0, 0], 1, os.path.join(outdir, f'seed{seed:04d}.ply'), level=10)
+        elif shape_format == '.mrc': # output mrc
+            with mrcfile.new_mmap(os.path.join(outdir, f'seed{seed:04d}.mrc'), overwrite=True, shape=sigmas.shape, mrc_mode=2) as mrc:
+                mrc.data[:] = sigmas
+
+
+
+#----------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    convert_triplanes()
+
+#----------------------------------------------------------------------------
+
