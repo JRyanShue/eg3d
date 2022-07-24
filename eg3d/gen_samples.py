@@ -182,6 +182,7 @@ def generate_images(
         PIL.Image.fromarray(img[0].cpu().numpy(), 'RGB').save(f'{outdir}/seed{seed:04d}.png')
 
         if shapes:
+
             # extract a shape.mrc with marching cubes. You can view the .mrc file using ChimeraX from UCSF.
             max_batch=1000000
 
