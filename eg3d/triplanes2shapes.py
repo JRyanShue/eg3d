@@ -12,26 +12,40 @@ Ex:
 CUDA_VISIBLE_DEVICES=6 python triplanes2shapes.py --triplane_dir=triplanes_to_convert --out_dir=converted_shapes
 '''
 
-import click
 import os
 
-import legacy
-
+import click
+import dnnlib
+import numpy as np
 import torch
 from tqdm import tqdm
 
-# from training.triplane import TriPlaneGenerator
+import legacy
+from torch_utils import misc
+from training.triplane import TriPlaneGenerator
+from .gen_samples import create_samples
+
 
 
 @click.command()
 @click.option('--network', 'network_pkl', help='Network pickle filename', required=True)
+@click.option('--trunc', 'truncation_psi', type=float, help='Truncation psi', default=1, show_default=True)
+@click.option('--trunc-cutoff', 'truncation_cutoff', type=int, help='Truncation cutoff', default=14, show_default=True)
 @click.option('--triplane_dir', help='Directory of triplanes to convert to shapes', required=True)
 @click.option('--outdir', help='Directory to put completed shapes', required=True)
+@click.option('--shape-res', help='', type=int, required=False, metavar='int', default=512, show_default=True)
+@click.option('--reload_modules', help='Overload persistent modules?', type=bool, required=False, metavar='BOOL', default=True, show_default=True)
 def convert_triplanes(
     network_pkl: str,
+    truncation_psi: float,
+    truncation_cutoff: int,
     triplane_dir: str,
     outdir: str,
+    shape_res: int,
+    reload_modules: bool,
 ):
+
+    shape_format = '.ply'  # Temporary - produces smoother results
 
     # Load pickled network
     print('Loading networks from "%s"...' % network_pkl)
@@ -39,21 +53,29 @@ def convert_triplanes(
     with dnnlib.util.open_url(network_pkl) as f:
         G = legacy.load_network_pkl(f)['G_ema'].to(device) # type: ignore
 
+    # Specify reload_modules=True if you want code modifications to take effect; otherwise uses pickled code
+    if reload_modules:
+        print("Reloading Modules!")
+        G_new = TriPlaneGenerator(*G.init_args, **G.init_kwargs).eval().requires_grad_(False).to(device)
+        misc.copy_params_and_buffers(G, G_new, require_all=True)
+        G_new.neural_rendering_resolution = G.neural_rendering_resolution
+        G_new.rendering_kwargs = G.rendering_kwargs
+        G = G_new
 
-    print(f'Converting triplanes in \"{triplane_dir}\" to shapes in \"{outdir}\"')
     os.makedirs(outdir, exist_ok=True)
+    print(f'Converting triplanes in \"{triplane_dir}\" to shapes in \"{outdir}\"...')
 
 
     # Loop through the triplane directory, converting each triplane into a shape in the outdir
-    shape_format = '.ply'  # Temporary - produces smoother results
-    for idx, num in enumerate(range(5)):
+    for triplane_idx, triplane in enumerate(range(5)):  # Loop through triplane data
+
         # extract a shape.mrc with marching cubes. You can view the .mrc file using ChimeraX from UCSF.
         max_batch=1000000
 
         samples, voxel_origin, voxel_size = create_samples(N=shape_res, voxel_origin=[0, 0, 0], cube_length=G.rendering_kwargs['box_warp'] * 1)#.reshape(1, -1, 3)
-        samples = samples.to(z.device)
-        sigmas = torch.zeros((samples.shape[0], samples.shape[1], 1), device=z.device)
-        transformed_ray_directions_expanded = torch.zeros((samples.shape[0], max_batch, 3), device=z.device)
+        samples = samples.to(device)
+        sigmas = torch.zeros((samples.shape[0], samples.shape[1], 1), device=device)
+        transformed_ray_directions_expanded = torch.zeros((samples.shape[0], max_batch, 3), device=device)
         transformed_ray_directions_expanded[..., -1] = -1
 
         head = 0
@@ -61,7 +83,8 @@ def convert_triplanes(
             with torch.no_grad():
                 while head < samples.shape[1]:
                     torch.manual_seed(0)
-                    sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], z, conditioning_params, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
+                    # Get object densities using pregenerated triplane
+                    sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], planes=triplane, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
                     sigmas[:, head:head+max_batch] = sigma
                     head += max_batch
                     pbar.update(max_batch)
@@ -81,10 +104,10 @@ def convert_triplanes(
 
         if shape_format == '.ply':
             from shape_utils import convert_sdf_samples_to_ply
-            convert_sdf_samples_to_ply(np.transpose(sigmas, (2, 1, 0)), [0, 0, 0], 1, os.path.join(outdir, f'seed{seed:04d}.ply'), level=10)
-        elif shape_format == '.mrc': # output mrc
-            with mrcfile.new_mmap(os.path.join(outdir, f'seed{seed:04d}.mrc'), overwrite=True, shape=sigmas.shape, mrc_mode=2) as mrc:
-                mrc.data[:] = sigmas
+            convert_sdf_samples_to_ply(np.transpose(sigmas, (2, 1, 0)), [0, 0, 0], 1, os.path.join(outdir, f'triplane{triplane_idx:04d}.ply'), level=10)
+        # elif shape_format == '.mrc': # output mrc
+        #     with mrcfile.new_mmap(os.path.join(outdir, f'seed{seed:04d}.mrc'), overwrite=True, shape=sigmas.shape, mrc_mode=2) as mrc:
+        #         mrc.data[:] = sigmas
 
 
 
