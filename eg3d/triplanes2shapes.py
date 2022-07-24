@@ -14,10 +14,12 @@ CUDA_VISIBLE_DEVICES=6 python triplanes2shapes.py --triplane_dir=triplanes_to_co
 
 import os
 
+import blobfile as bf
 import click
 import dnnlib
 import numpy as np
 import torch
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 import legacy
@@ -25,6 +27,55 @@ from torch_utils import misc
 from training.triplane import TriPlaneGenerator
 from .gen_samples import create_samples
 
+
+
+#----------------------------------------------------------------------------
+
+'''
+Dataset utils adapted from OpenAI "Diffusion Models Beat GANs on Image Synthesis"
+'''
+
+class TriplaneDataset(Dataset):
+    def __init__(
+        self,
+        image_paths,
+        classes=None,
+        shard=0,
+        num_shards=1,
+    ):
+        super().__init__()
+        self.local_images = image_paths[shard:][::num_shards]
+        self.local_classes = None if classes is None else classes[shard:][::num_shards]
+
+    def __len__(self):
+        return len(self.local_images)
+
+    def __getitem__(self, idx):
+        path = self.local_images[idx]
+
+        # Get the triplane's saved index for easy reference.
+        triplane_idx = int(os.path.basename(path).split('.')[0])
+
+        arr = np.load(path)
+
+        arr = arr.astype(np.float32)  # / 127.5 - 1  <-- need to normalize the triplanes in their own way.
+        arr = arr.reshape([-1, arr.shape[-2], arr.shape[-1]])
+
+        return triplane_idx, arr
+
+
+def _list_image_files_recursively(data_dir):
+    results = []
+    for entry in sorted(bf.listdir(data_dir)):
+        full_path = bf.join(data_dir, entry)
+        ext = entry.split(".")[-1]
+        if "." in entry and ext.lower() in ["jpg", "jpeg", "png", "gif", "npy"]:
+            results.append(full_path)
+        elif bf.isdir(full_path):
+            results.extend(_list_image_files_recursively(full_path))
+    return results
+
+#----------------------------------------------------------------------------
 
 
 @click.command()
@@ -62,12 +113,15 @@ def convert_triplanes(
         G_new.rendering_kwargs = G.rendering_kwargs
         G = G_new
 
-    os.makedirs(outdir, exist_ok=True)
-    print(f'Converting triplanes in \"{triplane_dir}\" to shapes in \"{outdir}\"...')
+    # Create triplane dataset
+    all_files = _list_image_files_recursively(triplane_dir)
+    triplane_ds = TriplaneDataset(all_files)
 
+    os.makedirs(outdir, exist_ok=True)
+    print(f'Converting {len(triplane_ds)} triplanes in \"{triplane_dir}\" to shapes in \"{outdir}\"...')
 
     # Loop through the triplane directory, converting each triplane into a shape in the outdir
-    for triplane_idx, triplane in enumerate(range(5)):  # Loop through triplane data
+    for triplane_idx, triplane in triplane_ds:  # Loop through triplane data
 
         # extract a shape.mrc with marching cubes. You can view the .mrc file using ChimeraX from UCSF.
         max_batch=1000000
@@ -108,7 +162,6 @@ def convert_triplanes(
         # elif shape_format == '.mrc': # output mrc
         #     with mrcfile.new_mmap(os.path.join(outdir, f'seed{seed:04d}.mrc'), overwrite=True, shape=sigmas.shape, mrc_mode=2) as mrc:
         #         mrc.data[:] = sigmas
-
 
 
 #----------------------------------------------------------------------------
