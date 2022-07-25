@@ -34,7 +34,7 @@ def generate_planes():
                             [0, 1, 0]],
                             [[0, 0, 1],
                             [1, 0, 0],
-                            [0, 1, 0]]], dtype=torch.float32)
+                            [0, 1, 0]]], dtype=torch.float32).to(torch.device('cuda'))
 
 def project_onto_planes(planes, coordinates):
     """

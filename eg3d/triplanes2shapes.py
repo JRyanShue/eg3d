@@ -9,7 +9,7 @@ No rendering required -- we are testing 3D/4D (first just 3D) capabilities of ou
 '''
 Ex:
 
-CUDA_VISIBLE_DEVICES=6 python triplanes2shapes.py --triplane_dir=triplanes_to_convert --out_dir=converted_shapes
+CUDA_VISIBLE_DEVICES=6 python triplanes2shapes.py --triplane_dir=triplanes_to_convert --outdir=converted_shapes --network=networks/triplane_small_7k.pkl
 '''
 
 import os
@@ -25,7 +25,7 @@ from tqdm import tqdm
 import legacy
 from torch_utils import misc
 from training.triplane import TriPlaneGenerator
-from .gen_samples import create_samples
+from gen_samples import create_samples
 
 
 
@@ -138,7 +138,7 @@ def convert_triplanes(
                 while head < samples.shape[1]:
                     torch.manual_seed(0)
                     # Get object densities using pregenerated triplane
-                    sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], planes=triplane, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
+                    sigma = G.sample(samples[:, head:head+max_batch], transformed_ray_directions_expanded[:, :samples.shape[1]-head], planes=torch.Tensor(triplane).to(device), truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, noise_mode='const')['sigma']
                     sigmas[:, head:head+max_batch] = sigma
                     head += max_batch
                     pbar.update(max_batch)
